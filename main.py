@@ -84,7 +84,7 @@ def home():
     out_template = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
 
     ydl_opts = {
-        "format": "ba/ba*",
+        "format": "m4a/bestaudio/best",
         "outtmpl": out_template,
         "postprocessors": [
             {
@@ -96,10 +96,11 @@ def home():
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
+        "nocheckcertificate": True,
         "extractor_args": {
             "youtube": {
-                "player_client": ["ios", "web"],
-                "skip": ["dash", "hls"]
+                "player_client": ["android", "ios", "web_creator"],
+                "player_skip": ["webpage", "configs"]
             }
         },
         "match_filter": yt_dlp.utils.match_filter_func(
@@ -112,7 +113,7 @@ def home():
             ydl.download([watch_url])
     except Exception as e:
         log.exception("Conversion error for %s: %s", watch_url, e)
-        return jsonify({"error": "Conversion failed."}), 500
+        return jsonify({"error": "Conversion failed.", "details": str(e)}), 500
 
     mp3_path = DOWNLOAD_DIR / f"{job_id}.mp3"
     if not mp3_path.exists():
