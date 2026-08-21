@@ -18,11 +18,11 @@ log = logging.getLogger("ytmp3-api")
 app = Flask(__name__)
 CORS(app)
 
+# Safe Limiter Initialization
 limiter = Limiter(
-    get_remote_address,
+    key_func=get_remote_address,
     app=app,
-    default_limits=["60 per hour", "20 per minute"],
-    storage_uri="memory://",
+    default_limits=["60 per hour", "20 per minute"]
 )
 
 DOWNLOAD_DIR = Path("/tmp/ytmp3r")
