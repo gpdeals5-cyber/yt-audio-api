@@ -2,7 +2,6 @@ import os
 import re
 import time
 import uuid
-import shutil
 import logging
 import threading
 from pathlib import Path
@@ -17,29 +16,20 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("ytmp3-api")
 
 app = Flask(__name__)
-
-# Allow all origins by default or specific domain if set in Env
-ALLOWED_ORIGINS = [
-    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
-]
-
-if ALLOWED_ORIGINS:
-    CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS, "methods": ["GET", "OPTIONS"]}})
-else:
-    CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "OPTIONS"]}})
+CORS(app)
 
 limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=["60 per hour", "20 per minute"],
-    storage_uri=os.environ.get("REDIS_URL", "memory://"),
+    storage_uri="memory://",
 )
 
-DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR", "/tmp/ytmp3r"))
+DOWNLOAD_DIR = Path("/tmp/ytmp3r")
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-TOKEN_TTL_SECONDS = int(os.environ.get("TOKEN_TTL_SECONDS", "600"))
-MAX_DURATION_SECONDS = int(os.environ.get("MAX_DURATION_SECONDS", "1800"))
+TOKEN_TTL_SECONDS = 600
+MAX_DURATION_SECONDS = 1800
 
 _tokens = {}
 _tokens_lock = threading.Lock()
@@ -77,7 +67,7 @@ def _cleanup_expired():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "message": "API is running!"})
+    return jsonify({"status": "ok", "message": "API is online!"})
 
 @app.route("/")
 def home():
@@ -115,19 +105,13 @@ def home():
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([watch_url])
-    except yt_dlp.utils.DownloadError as e:
-        log.warning("yt-dlp failed for %s: %s", watch_url, e)
-        return jsonify({
-            "error": "This video could not be converted.",
-            "detail": "It may be private, age-restricted, region-locked, or too long.",
-        }), 422
-    except Exception:
-        log.exception("Unexpected conversion error for %s", watch_url)
-        return jsonify({"error": "Conversion failed unexpectedly."}), 500
+    except Exception as e:
+        log.exception("Conversion error for %s: %s", watch_url, e)
+        return jsonify({"error": "Conversion failed."}), 500
 
     mp3_path = DOWNLOAD_DIR / f"{job_id}.mp3"
     if not mp3_path.exists():
-        return jsonify({"error": "Conversion finished but no output file was produced."}), 500
+        return jsonify({"error": "No output file produced."}), 500
 
     token = uuid.uuid4().hex
     with _tokens_lock:
@@ -139,7 +123,6 @@ def home():
     return jsonify({"token": token, "download_url": f"/download?token={token}"})
 
 @app.route("/download")
-@limiter.limit("30 per minute")
 def download():
     _cleanup_expired()
     token = request.args.get("token", "")
@@ -150,7 +133,7 @@ def download():
         meta = _tokens.get(token)
 
     if not meta or not meta["path"].exists():
-        abort(404, description="This download link has expired. Please convert again.")
+        abort(404, description="Expired token.")
 
     return send_file(
         meta["path"],
@@ -159,9 +142,6 @@ def download():
         download_name="audio.mp3",
     )
 
-@app.errorhandler(429)
-def ratelimit_handler(e):
-    return jsonify({"error": "Too many requests. Please slow down and try again."}), 429
-
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
