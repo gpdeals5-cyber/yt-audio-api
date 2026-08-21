@@ -1,8 +1,5 @@
 providers = ["python"]
 
-# Ensures ffmpeg (and a couple of its common runtime deps) are present in the
-# Railway build image. Without this, yt-dlp's audio extraction step fails
-# with "ffprobe/ffmpeg not found" even though yt-dlp itself installs fine.
 [phases.setup]
 nixPkgs = ["ffmpeg", "python311", "gcc"]
 
@@ -10,4 +7,4 @@ nixPkgs = ["ffmpeg", "python311", "gcc"]
 cmds = ["pip install -r requirements.txt"]
 
 [start]
-cmd = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 300"
+cmd = "gunicorn main:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 300"
