@@ -18,7 +18,6 @@ log = logging.getLogger("ytmp3-api")
 app = Flask(__name__)
 CORS(app)
 
-# Safe Limiter Initialization for Production
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
@@ -85,7 +84,7 @@ def home():
     out_template = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
 
     ydl_opts = {
-        "format": "bestaudio/best",
+        "format": "ba/ba*",
         "outtmpl": out_template,
         "postprocessors": [
             {
@@ -97,11 +96,11 @@ def home():
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
-        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-us,en;q=0.5",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["ios", "web"],
+                "skip": ["dash", "hls"]
+            }
         },
         "match_filter": yt_dlp.utils.match_filter_func(
             f"duration <= {MAX_DURATION_SECONDS}"
