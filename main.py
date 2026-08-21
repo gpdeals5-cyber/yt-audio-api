@@ -18,7 +18,7 @@ log = logging.getLogger("ytmp3-api")
 app = Flask(__name__)
 CORS(app)
 
-# Safe Limiter Initialization
+# Safe Limiter Initialization for Production
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
