@@ -1,16 +1,5 @@
-# requirements.txt
-# Dependencies for the YouTube Audio Converter API
-# Curated by Alperen Sümeroğlu for clean and efficient deployment
-
-click==7.1.2
-Flask==1.1.2
-itsdangerous==1.1.0
-Jinja2==2.11.3
-MarkupSafe==1.1.1
-Werkzeug==1.0.1
-yt-dlp>=2024.1.1
-
-# System requirement (install manually if missing)
-# FFmpeg must be installed separately for audio conversion
-# On macOS:    brew install ffmpeg
-# On Ubuntu:   sudo apt install ffmpegreq
+flask==3.0.3
+flask-cors==4.0.1
+flask-limiter==3.8.0
+yt-dlp==2024.8.6
+gunicorn==22.0.0
