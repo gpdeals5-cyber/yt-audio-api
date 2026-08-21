@@ -1,5 +1,2 @@
-[providers]
-provider = "python"
-
 [phases.setup]
-nixPkgs = ["python311", "ffmpeg"]
+aptPkgs = ["ffmpeg", "ffprobe"]
