@@ -13,7 +13,7 @@ from flask_limiter.util import get_remote_address
 import yt_dlp
 
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("ytmp3-api")
+logger = logging.getLogger("ytmp3-api")
 
 app = Flask(__name__)
 CORS(app)
@@ -28,124 +28,137 @@ DOWNLOAD_DIR = Path("/tmp/ytmp3r")
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 TOKEN_TTL_SECONDS = 600
-MAX_DURATION_SECONDS = 1800
+MAX_DURATION_SECONDS = 18000  # 5 hours tak ki videos allowed
 
 _tokens = {}
 _tokens_lock = threading.Lock()
 
 YOUTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 YOUTUBE_URL_RE = re.compile(
-    r"^https?://(www\.|m\.)?(youtube\.com/(watch\?v=|shorts/|embed/|live/)|youtu\.be/)[A-Za-z0-9_-]{11}"
+    r"^(https?://)?(www\.)?(youtube\.com/(watch\?v=|shorts/|embed/|live/)|youtu\.be/)[A-Za-z0-9_-]{11}"
 )
 
-def _validate_youtube_url(raw_url: str) -> str:
-    raw_url = (raw_url or "").strip()
-    if not raw_url or len(raw_url) > 2048:
-        abort(400, description="Missing or invalid url parameter.")
+def _cleanup_expired_tokens():
+    while True:
+        time.sleep(60)
+        now = time.time()
+        expired = []
+        with _tokens_lock:
+            for token, meta in list(_tokens.items()):
+                if now - meta["created_at"] > TOKEN_TTL_SECONDS:
+                    expired.append(token)
+                    del _tokens[token]
+        for token in expired:
+            for p in DOWNLOAD_DIR.glob(f"{token}.*"):
+                try:
+                    p.unlink(missing_ok=True)
+                except Exception as e:
+                    logger.error(f"Cleanup error for {p}: {e}")
 
-    if not YOUTUBE_URL_RE.match(raw_url):
-        abort(400, description="Only youtube.com / youtu.be URLs are supported.")
+threading.Thread(target=_cleanup_expired_tokens, daemon=True).start()
 
-    match = re.search(r"(?:v=|/shorts/|/embed/|/live/|youtu\.be/)([A-Za-z0-9_-]{11})", raw_url)
-    if not match or not YOUTUBE_ID_RE.match(match.group(1)):
-        abort(400, description="Could not extract a valid YouTube video ID.")
+def _extract_video_id(url_or_id: str) -> str:
+    url_or_id = url_or_id.strip()
+    if YOUTUBE_ID_RE.match(url_or_id):
+        return url_or_id
+    if YOUTUBE_URL_RE.match(url_or_id):
+        m = re.search(r"([A-Za-z0-9_-]{11})", url_or_id)
+        if m:
+            return m.group(1)
+    return None
 
-    return f"https://www.youtube.com/watch?v={match.group(1)}"
-
-def _cleanup_expired():
-    now = time.time()
-    with _tokens_lock:
-        expired = [t for t, meta in _tokens.items() if meta["expires"] < now]
-        for t in expired:
-            meta = _tokens.pop(t)
-            try:
-                if meta["path"].exists():
-                    meta["path"].unlink()
-            except OSError:
-                pass
-
-@app.route("/health")
+@app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "message": "API is online!"})
+    return jsonify({"status": "ok"}), 200
 
-@app.route("/")
-def home():
-    _cleanup_expired()
-    raw_url = request.args.get("url", "")
-    
+@app.route("/", methods=["GET"])
+def convert():
+    raw_url = request.args.get("url")
     if not raw_url:
-        return jsonify({
-            "status": "online",
-            "message": "YouTube MP3 Converter API is active. Pass ?url=YOUTUBE_LINK to convert."
-        })
+        return jsonify({"error": "Missing 'url' parameter"}), 400
 
-    watch_url = _validate_youtube_url(raw_url)
-    job_id = uuid.uuid4().hex
-    out_template = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
+    video_id = _extract_video_id(raw_url)
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL or ID"}), 400
+
+    full_url = f"https://www.youtube.com/watch?v={video_id}"
+    token = uuid.uuid4().hex
 
     ydl_opts = {
-        "format": "m4a/bestaudio/best",
-        "outtmpl": out_template,
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": "192",
+        'format': 'bestaudio/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'outtmpl': str(DOWNLOAD_DIR / f"{token}.%(ext)s"),
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
+        'socket_timeout': 30,
+        'retries': 10,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'web_creator', 'mweb'],
+                'player_skip': ['webpage', 'configs']
             }
-        ],
-        "noplaylist": True,
-        "quiet": True,
-        "no_warnings": True,
-        "nocheckcertificate": True,
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["android", "ios", "web_creator"],
-                "player_skip": ["webpage", "configs"]
-            }
-        },
-        "match_filter": yt_dlp.utils.match_filter_func(
-            f"duration <= {MAX_DURATION_SECONDS}"
-        ),
+        }
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([watch_url])
+            info = ydl.extract_info(full_url, download=False)
+            duration = info.get("duration", 0)
+            if duration and duration > MAX_DURATION_SECONDS:
+                return jsonify({"error": "Video duration exceeds limit"}), 400
+
+            ydl.download([full_url])
+
+        file_path = DOWNLOAD_DIR / f"{token}.mp3"
+        if not file_path.exists():
+            return jsonify({"error": "Conversion failed, file not generated"}), 500
+
+        with _tokens_lock:
+            _tokens[token] = {
+                "file_path": str(file_path),
+                "created_at": time.time(),
+                "title": info.get("title", "audio")
+            }
+
+        download_url = f"/download?token={token}"
+        return jsonify({
+            "token": token,
+            "download_url": download_url
+        }), 200
+
     except Exception as e:
-        log.exception("Conversion error for %s: %s", watch_url, e)
-        return jsonify({"error": "Conversion failed.", "details": str(e)}), 500
+        logger.error(f"Error processing {full_url}: {e}")
+        return jsonify({"error": "Conversion failed", "details": str(e)}), 500
 
-    mp3_path = DOWNLOAD_DIR / f"{job_id}.mp3"
-    if not mp3_path.exists():
-        return jsonify({"error": "No output file produced."}), 500
-
-    token = uuid.uuid4().hex
-    with _tokens_lock:
-        _tokens[token] = {
-            "path": mp3_path,
-            "expires": time.time() + TOKEN_TTL_SECONDS,
-        }
-
-    return jsonify({"token": token, "download_url": f"/download?token={token}"})
-
-@app.route("/download")
+@app.route("/download", methods=["GET"])
 def download():
-    _cleanup_expired()
-    token = request.args.get("token", "")
-    if not token or not re.match(r"^[a-f0-9]{32}$", token):
-        abort(400, description="Missing or invalid token.")
+    token = request.args.get("token")
+    if not token:
+        abort(400, description="Missing token")
 
     with _tokens_lock:
         meta = _tokens.get(token)
 
-    if not meta or not meta["path"].exists():
-        abort(404, description="Expired token.")
+    if not meta:
+        abort(404, description="Invalid or expired token")
+
+    file_path = Path(meta["file_path"])
+    if not file_path.exists():
+        abort(404, description="File not found")
+
+    safe_title = re.sub(r'[^\w\s-]', '', meta["title"]).strip() or "audio"
+    filename = f"{safe_title}.mp3"
 
     return send_file(
-        meta["path"],
-        mimetype="audio/mpeg",
+        file_path,
         as_attachment=True,
-        download_name="audio.mp3",
+        download_name=filename,
+        mimetype="audio/mpeg"
     )
 
 if __name__ == "__main__":
