@@ -28,15 +28,12 @@ DOWNLOAD_DIR = Path("/tmp/ytmp3r")
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 TOKEN_TTL_SECONDS = 600
-MAX_DURATION_SECONDS = 18000  # 5 hours tak ki videos allowed
+MAX_DURATION_SECONDS = 18000  # 5 hours limit
 
 _tokens = {}
 _tokens_lock = threading.Lock()
 
 YOUTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
-YOUTUBE_URL_RE = re.compile(
-    r"^(https?://)?(www\.)?(youtube\.com/(watch\?v=|shorts/|embed/|live/)|youtu\.be/)[A-Za-z0-9_-]{11}"
-)
 
 def _cleanup_expired_tokens():
     while True:
@@ -58,13 +55,26 @@ def _cleanup_expired_tokens():
 threading.Thread(target=_cleanup_expired_tokens, daemon=True).start()
 
 def _extract_video_id(url_or_id: str) -> str:
+    if not url_or_id:
+        return None
     url_or_id = url_or_id.strip()
+    
+    # Direct 11-character Video ID match
     if YOUTUBE_ID_RE.match(url_or_id):
         return url_or_id
-    if YOUTUBE_URL_RE.match(url_or_id):
-        m = re.search(r"([A-Za-z0-9_-]{11})", url_or_id)
-        if m:
-            return m.group(1)
+        
+    # Standard URLs, Shorts, and Share links (?si=... support included)
+    patterns = [
+        r"(?:v=|\/)([0-9A-Za-z_-]{11})(?:[&?\/]|$)",
+        r"youtu\.be\/([0-9A-Za-z_-]{11})",
+        r"shorts\/([0-9A-Za-z_-]{11})"
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url_or_id)
+        if match:
+            return match.group(1)
+            
     return None
 
 @app.route("/health", methods=["GET"])
@@ -85,21 +95,23 @@ def convert():
     token = uuid.uuid4().hex
 
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'ba/ba*',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
-            'preferredquality': '192',
+            'preferredquality': '128',
         }],
         'outtmpl': str(DOWNLOAD_DIR / f"{token}.%(ext)s"),
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'socket_timeout': 30,
-        'retries': 10,
+        'socket_timeout': 60,
+        'retries': 15,
+        'fragment_retries': 15,
+        'concurrent_fragment_downloads': 5,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'web_creator', 'mweb'],
+                'player_client': ['android', 'ios', 'mweb'],
                 'player_skip': ['webpage', 'configs']
             }
         }
