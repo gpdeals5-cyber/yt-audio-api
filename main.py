@@ -48,13 +48,18 @@ def index():
             'preferredquality': '128',
         }],
         'outtmpl': out_path_template,
-        'cookiefile': 'www.youtube.com_cookies.txt',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'socket_timeout': 60,
         'retries': 15,
-        'noplaylist': True
+        'noplaylist': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios'],
+                'player_skip': ['webpage', 'configs']
+            }
+        }
     }
 
     try:
