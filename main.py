@@ -54,12 +54,7 @@ def index():
         'nocheckcertificate': True,
         'socket_timeout': 60,
         'retries': 15,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['mweb', 'ios', 'android'],
-                'player_skip': ['configs']
-            }
-        }
+        'noplaylist': True
     }
 
     try:
