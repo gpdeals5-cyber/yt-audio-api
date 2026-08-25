@@ -48,17 +48,17 @@ def index():
             'preferredquality': '128',
         }],
         'outtmpl': out_path_template,
-        'cookiefile': 'cookies.txt',  # <--- Renamed cookies file linked
+        'cookiefile': 'cookies.txt',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'socket_timeout': 60,
-        'retries': 15,
+        'retries': 20,
         'noplaylist': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['mweb', 'ios', 'android'],
-                'player_skip': ['configs']
+                'player_client': ['ios', 'mweb', 'android', 'web'],
+                'player_skip': ['webpage', 'configs']
             }
         }
     }
