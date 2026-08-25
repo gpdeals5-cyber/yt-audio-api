@@ -2,7 +2,7 @@ import os
 import secrets
 import threading
 from pathlib import Path
-from flask import Flask, request, jsonify, send_file, Response
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -21,7 +21,7 @@ limiter = Limiter(
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-# Token Cleanup Logic
+# Token Cleanup Logic (Deletes downloaded files after 10 minutes)
 def schedule_file_deletion(filepath: Path, delay_seconds: int = 600):
     def delete_file():
         try:
@@ -41,14 +41,14 @@ def index():
     out_path_template = str(DOWNLOAD_DIR / f"{token}.%(ext)s")
 
     ydl_opts = {
-        'format': 'ba/ba*',
+        'format': 'bestaudio/best',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '128',
         }],
         'outtmpl': out_path_template,
-        'cookiefile': 'www.youtube.com_cookies.txt',  # <--- Exact uploaded file name
+        'cookiefile': 'www.youtube.com_cookies.txt',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
@@ -56,8 +56,8 @@ def index():
         'retries': 15,
         'extractor_args': {
             'youtube': {
-                'player_client': ['mweb', 'ios'],
-                'player_skip': ['webpage', 'configs']
+                'player_client': ['mweb', 'ios', 'android'],
+                'player_skip': ['configs']
             }
         }
     }
