@@ -21,7 +21,6 @@ limiter = Limiter(
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-# Token Cleanup Logic (Deletes downloaded files after 10 minutes)
 def schedule_file_deletion(filepath: Path, delay_seconds: int = 600):
     def delete_file():
         try:
@@ -48,20 +47,23 @@ def index():
             'preferredquality': '128',
         }],
         'outtmpl': out_path_template,
-        'cookiefile': 'cookies.txt',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'socket_timeout': 60,
-        'retries': 20,
+        'socket_timeout': 30,
+        'retries': 10,
         'noplaylist': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'mweb', 'android', 'web'],
+                'player_client': ['tv', 'android', 'ios'],
                 'player_skip': ['webpage', 'configs']
             }
         }
     }
+
+    # Agar cookies.txt exist karti hai toh pass karein
+    if os.path.exists('cookies.txt'):
+        ydl_opts['cookiefile'] = 'cookies.txt'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
