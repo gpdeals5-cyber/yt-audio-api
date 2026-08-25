@@ -33,8 +33,6 @@ MAX_DURATION_SECONDS = 18000  # 5 hours limit
 _tokens = {}
 _tokens_lock = threading.Lock()
 
-YOUTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
-
 def _cleanup_expired_tokens():
     while True:
         time.sleep(60)
@@ -59,21 +57,14 @@ def _extract_video_id(url_or_id: str) -> str:
         return None
     url_or_id = url_or_id.strip()
     
-    # Direct 11-character Video ID match
-    if YOUTUBE_ID_RE.match(url_or_id):
+    # 11-char ID match
+    if re.match(r"^[A-Za-z0-9_-]{11}$", url_or_id):
         return url_or_id
         
-    # Standard URLs, Shorts, and Share links (?si=... support included)
-    patterns = [
-        r"(?:v=|\/)([0-9A-Za-z_-]{11})(?:[&?\/]|$)",
-        r"youtu\.be\/([0-9A-Za-z_-]{11})",
-        r"shorts\/([0-9A-Za-z_-]{11})"
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, url_or_id)
-        if match:
-            return match.group(1)
+    # Extract ID from all URL types including share ?si= parameters
+    match = re.search(r"(?:v=|\/|shorts\/|youtu\.be\/)([A-Za-z0-9_-]{11})", url_or_id)
+    if match:
+        return match.group(1)
             
     return None
 
@@ -95,7 +86,7 @@ def convert():
     token = uuid.uuid4().hex
 
     ydl_opts = {
-        'format': 'ba/ba*',
+        'format': 'bestaudio/best',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -106,13 +97,12 @@ def convert():
         'no_warnings': True,
         'nocheckcertificate': True,
         'socket_timeout': 60,
-        'retries': 15,
-        'fragment_retries': 15,
-        'concurrent_fragment_downloads': 5,
+        'retries': 10,
+        'fragment_retries': 10,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'mweb'],
-                'player_skip': ['webpage', 'configs']
+                'player_client': ['web', 'mweb', 'android', 'ios'],
+                'player_skip': ['configs']
             }
         }
     }
