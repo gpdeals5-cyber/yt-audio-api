@@ -8,6 +8,10 @@ from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import yt_dlp
+import imageio_ffmpeg
+
+# Auto-detect FFmpeg binary path
+FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 app = Flask(__name__)
 CORS(app)
@@ -51,6 +55,7 @@ def index():
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': out_template,
+        'ffmpeg_location': FFMPEG_PATH,  # FFmpeg path set explicitly
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -83,7 +88,6 @@ def index():
             video_title = info.get('title', 'audio') if info else 'audio'
             FILE_TITLES[token] = clean_filename(video_title)
 
-        # Look for any generated file with this token prefix
         generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
         if not generated_files:
             return jsonify({'error': 'Conversion failed or file not generated'}), 500
