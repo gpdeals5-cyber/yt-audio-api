@@ -12,7 +12,6 @@ import yt_dlp
 app = Flask(__name__)
 CORS(app)
 
-# Memory limiter setup
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -44,14 +43,16 @@ def schedule_file_deletion(token: str, delay_seconds: int = 600):
 @app.route('/', methods=['GET'])
 def index():
     url = request.args.get('url')
+    fmt = request.args.get('format', 'mp3').lower() # Default mp3 hai, ya mp4 pass ho sakta hai
+
     if not url:
         return jsonify({'error': 'Missing url parameter'}), 400
 
     token = secrets.token_hex(16)
     out_template = str(DOWNLOAD_DIR / f"{token}.%(ext)s")
 
+    # Base yt-dlp configuration
     ydl_opts = {
-        'format': 'bestaudio/best',
         'outtmpl': out_template,
         'quiet': True,
         'no_warnings': True,
@@ -59,6 +60,7 @@ def index():
         'socket_timeout': 30,
         'retries': 10,
         'noplaylist': True,
+        'prefer_ffmpeg': True,
         'extractor_args': {
             'youtube': {
                 'player_client': ['mweb', 'android', 'ios'],
@@ -70,14 +72,28 @@ def index():
         }
     }
 
+    # Format specific options
+    if fmt == 'mp4':
+        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+    else:
+        ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '128',
+        }]
+
     if os.path.exists('cookies.txt'):
         ydl_opts['cookiefile'] = 'cookies.txt'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            video_title = info.get('title', 'audio') if info else 'audio'
-            FILE_TITLES[token] = clean_filename(video_title)
+            video_title = info.get('title', 'media') if info else 'media'
+            FILE_TITLES[token] = {
+                'title': clean_filename(video_title),
+                'format': fmt
+            }
 
         generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
         if not generated_files:
@@ -87,7 +103,7 @@ def index():
         return jsonify({
             'download_url': f"/download?token={token}",
             'token': token,
-            'title': FILE_TITLES[token]
+            'title': FILE_TITLES[token]['title']
         })
 
     except Exception as e:
@@ -107,14 +123,21 @@ def download(token=None):
         return jsonify({'error': 'Link expired or file not found'}), 404
 
     file_path = generated_files[0]
-    custom_title = FILE_TITLES.get(token, "audio")
-    ext = file_path.suffix
-    download_filename = f"{custom_title}{ext}"
+    meta = FILE_TITLES.get(token, {'title': 'media', 'format': 'mp3'})
+    
+    custom_title = meta['title']
+    fmt = meta['format']
+    
+    extension = 'mp4' if fmt == 'mp4' else 'mp3'
+    mimetype = 'video/mp4' if fmt == 'mp4' else 'audio/mpeg'
+    
+    download_filename = f"{custom_title}.{extension}"
 
     return send_file(
         file_path,
         as_attachment=True,
-        download_name=download_filename
+        download_name=download_filename,
+        mimetype=mimetype
     )
 
 if __name__ == '__main__':
