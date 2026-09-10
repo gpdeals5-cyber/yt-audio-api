@@ -1,2 +1,5 @@
-[phases.setup]
-aptPkgs = ["ffmpeg", "ffprobe"]
+[providers]
+providers = ["python"]
+
+[pkgs]
+apt = ["ffmpeg"]
