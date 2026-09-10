@@ -32,7 +32,7 @@ def clean_filename(title):
     cleaned = re.sub(r'[\\/*?:"<>|]', "", title)
     return cleaned.strip() or "audio"
 
-def schedule_file_deletion(token: str, delay_seconds: int = 1200):
+def schedule_file_deletion(token: str, delay_seconds: int = 1800):
     def delete_file():
         try:
             for f in DOWNLOAD_DIR.glob(f"{token}*"):
@@ -41,6 +41,7 @@ def schedule_file_deletion(token: str, delay_seconds: int = 1200):
             FILE_TITLES.pop(token, None)
         except Exception:
             pass
+    # Delete file after 30 minutes
     threading.Timer(delay_seconds, delete_file).start()
 
 @app.route('/', methods=['GET'])
@@ -53,9 +54,9 @@ def index():
     out_template = str(DOWNLOAD_DIR / f"{token}.%(ext)s")
 
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'ba/b',
         'outtmpl': out_template,
-        'ffmpeg_location': FFMPEG_PATH,  # FFmpeg path set explicitly
+        'ffmpeg_location': FFMPEG_PATH,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -64,8 +65,8 @@ def index():
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'socket_timeout': 60,
-        'retries': 10,
+        'socket_timeout': 300,
+        'retries': 20,
         'noplaylist': True,
         'prefer_ffmpeg': True,
         'extractor_args': {
@@ -92,7 +93,7 @@ def index():
         if not generated_files:
             return jsonify({'error': 'Conversion failed or file not generated'}), 500
 
-        schedule_file_deletion(token, 1200)
+        schedule_file_deletion(token, 1800)
         return jsonify({
             'download_url': f"/download?token={token}",
             'token': token,
