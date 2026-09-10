@@ -54,8 +54,15 @@ def index():
         'retries': 10,
         'noplaylist': True,
         'prefer_ffmpeg': True,
+        # Bot verification bypass settings
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['mweb', 'android', 'ios'],
+                'player_skip': ['webpage', 'configs']
+            }
+        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
         }
     }
 
@@ -68,7 +75,6 @@ def index():
 
         file_path = DOWNLOAD_DIR / f"{token}.mp3"
         
-        # Fallback check if file was downloaded in another audio extension
         if not file_path.exists():
             generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
             if generated_files:
@@ -77,13 +83,20 @@ def index():
                 return jsonify({'error': 'Conversion failed or file not generated'}), 500
 
         schedule_file_deletion(file_path, 600)
-        return jsonify({'download_url': f"/download/{token}", 'token': token})
+        return jsonify({'download_url': f"/download?token={token}", 'token': token})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/download', methods=['GET'])
 @app.route('/download/<token>', methods=['GET'])
-def download(token):
+def download(token=None):
+    if not token:
+        token = request.args.get('token')
+        
+    if not token:
+        return jsonify({'error': 'Token parameter missing'}), 400
+
     generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
     if not generated_files:
         return jsonify({'error': 'Link expired or file not found'}), 404
