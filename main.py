@@ -22,11 +22,9 @@ limiter = Limiter(
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-# File titles mapping against tokens
 FILE_TITLES = {}
 
 def clean_filename(title):
-    # Special characters remove karne ke liye safe filename generator
     cleaned = re.sub(r'[\\/*?:"<>|]', "", title)
     return cleaned.strip()
 
@@ -114,8 +112,6 @@ def download(token=None):
         return jsonify({'error': 'Link expired or file not found'}), 404
 
     file_path = generated_files[0]
-    
-    # YouTube video title fetch karke exact custom title ke saath response dena
     custom_title = FILE_TITLES.get(token, "audio")
     download_filename = f"{custom_title}.mp3"
 
