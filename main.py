@@ -1,6 +1,7 @@
 import os
 import secrets
 import threading
+import re
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
@@ -21,11 +22,21 @@ limiter = Limiter(
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-def schedule_file_deletion(filepath: Path, delay_seconds: int = 600):
+# In-memory dictionary to store file titles against tokens
+FILE_TITLES = {}
+
+def clean_filename(title):
+    # Safe filename for all OS (removes special characters)
+    return re.sub(r'[\\/*?:"<>|]', "", title)
+
+def schedule_file_deletion(token: str, delay_seconds: int = 600):
     def delete_file():
         try:
-            if filepath.exists():
-                filepath.unlink()
+            generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
+            for f in generated_files:
+                if f.exists():
+                    f.unlink()
+            FILE_TITLES.pop(token, None)
         except Exception:
             pass
     threading.Timer(delay_seconds, delete_file).start()
@@ -54,7 +65,6 @@ def index():
         'retries': 10,
         'noplaylist': True,
         'prefer_ffmpeg': True,
-        # Bot verification bypass settings
         'extractor_args': {
             'youtube': {
                 'player_client': ['mweb', 'android', 'ios'],
@@ -71,7 +81,10 @@ def index():
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+            # Video metadata extract karein
+            info = ydl.extract_info(url, download=True)
+            video_title = info.get('title', 'audio')
+            FILE_TITLES[token] = clean_filename(video_title)
 
         file_path = DOWNLOAD_DIR / f"{token}.mp3"
         
@@ -82,8 +95,12 @@ def index():
             else:
                 return jsonify({'error': 'Conversion failed or file not generated'}), 500
 
-        schedule_file_deletion(file_path, 600)
-        return jsonify({'download_url': f"/download?token={token}", 'token': token})
+        schedule_file_deletion(token, 600)
+        return jsonify({
+            'download_url': f"/download?token={token}",
+            'token': token,
+            'title': FILE_TITLES[token]
+        })
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -102,10 +119,15 @@ def download(token=None):
         return jsonify({'error': 'Link expired or file not found'}), 404
 
     file_path = generated_files[0]
+    
+    # Original video title fetch karein
+    custom_title = FILE_TITLES.get(token, "audio")
+    download_filename = f"{custom_title}{file_path.suffix}"
+
     return send_file(
         file_path,
         as_attachment=True,
-        download_name=f"audio{file_path.suffix}",
+        download_name=download_filename,
         mimetype="audio/mpeg"
     )
 
