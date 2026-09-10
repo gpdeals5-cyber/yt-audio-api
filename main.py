@@ -31,7 +31,7 @@ def clean_filename(title):
 def schedule_file_deletion(token: str, delay_seconds: int = 600):
     def delete_file():
         try:
-            generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
+            generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
             for f in generated_files:
                 if f.exists():
                     f.unlink()
@@ -84,7 +84,7 @@ def index():
             video_title = info.get('title', 'audio') if info else 'audio'
             FILE_TITLES[token] = clean_filename(video_title)
 
-        generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
+        generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
         if not generated_files:
             return jsonify({'error': 'Conversion failed or file not generated'}), 500
 
@@ -107,7 +107,7 @@ def download(token=None):
     if not token:
         return jsonify({'error': 'Token parameter missing'}), 400
 
-    generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
+    generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
     if not generated_files:
         return jsonify({'error': 'Link expired or file not found'}), 404
 
