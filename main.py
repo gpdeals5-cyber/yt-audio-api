@@ -1,7 +1,6 @@
 import os
 import secrets
 import threading
-import re
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
@@ -22,19 +21,11 @@ limiter = Limiter(
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-FILE_TITLES = {}
-
-def clean_filename(title):
-    cleaned = re.sub(r'[\\/*?:"<>|]', "", title)
-    return cleaned.strip() or "audio"
-
-def schedule_file_deletion(token: str, delay_seconds: int = 1200):
+def schedule_file_deletion(filepath: Path, delay_seconds: int = 600):
     def delete_file():
         try:
-            for f in DOWNLOAD_DIR.glob(f"{token}*"):
-                if f.exists():
-                    f.unlink()
-            FILE_TITLES.pop(token, None)
+            if filepath.exists():
+                filepath.unlink()
         except Exception:
             pass
     threading.Timer(delay_seconds, delete_file).start()
@@ -59,18 +50,19 @@ def index():
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'socket_timeout': 60,
+        'socket_timeout': 30,
         'retries': 10,
         'noplaylist': True,
         'prefer_ffmpeg': True,
+        # Bot verification bypass settings
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'mweb'],
+                'player_client': ['mweb', 'android', 'ios'],
                 'player_skip': ['webpage', 'configs']
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
         }
     }
 
@@ -79,21 +71,19 @@ def index():
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            video_title = info.get('title', 'audio') if info else 'audio'
-            FILE_TITLES[token] = clean_filename(video_title)
+            ydl.download([url])
 
-        # Look for any generated file with this token prefix
-        generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
-        if not generated_files:
-            return jsonify({'error': 'Conversion failed or file not generated'}), 500
+        file_path = DOWNLOAD_DIR / f"{token}.mp3"
+        
+        if not file_path.exists():
+            generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
+            if generated_files:
+                file_path = generated_files[0]
+            else:
+                return jsonify({'error': 'Conversion failed or file not generated'}), 500
 
-        schedule_file_deletion(token, 1200)
-        return jsonify({
-            'download_url': f"/download?token={token}",
-            'token': token,
-            'title': FILE_TITLES[token]
-        })
+        schedule_file_deletion(file_path, 600)
+        return jsonify({'download_url': f"/download?token={token}", 'token': token})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -107,18 +97,15 @@ def download(token=None):
     if not token:
         return jsonify({'error': 'Token parameter missing'}), 400
 
-    generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
+    generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
     if not generated_files:
         return jsonify({'error': 'Link expired or file not found'}), 404
 
     file_path = generated_files[0]
-    custom_title = FILE_TITLES.get(token, "audio")
-    download_filename = f"{custom_title}.mp3"
-
     return send_file(
         file_path,
         as_attachment=True,
-        download_name=download_filename,
+        download_name=f"audio{file_path.suffix}",
         mimetype="audio/mpeg"
     )
 
