@@ -26,7 +26,6 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 FILE_TITLES = {}
 
 def clean_filename(title):
-    # Safe filename for all OS (removes special characters)
     return re.sub(r'[\\/*?:"<>|]', "", title)
 
 def schedule_file_deletion(token: str, delay_seconds: int = 600):
@@ -81,19 +80,14 @@ def index():
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Video metadata extract karein
             info = ydl.extract_info(url, download=True)
-            video_title = info.get('title', 'audio')
+            video_title = info.get('title', 'audio') if info else 'audio'
             FILE_TITLES[token] = clean_filename(video_title)
 
-        file_path = DOWNLOAD_DIR / f"{token}.mp3"
-        
-        if not file_path.exists():
-            generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
-            if generated_files:
-                file_path = generated_files[0]
-            else:
-                return jsonify({'error': 'Conversion failed or file not generated'}), 500
+        # Check if file exists in downloads folder
+        generated_files = list(DOWNLOAD_DIR.glob(f"{token}.*"))
+        if not generated_files:
+            return jsonify({'error': 'Conversion failed or file not generated'}), 500
 
         schedule_file_deletion(token, 600)
         return jsonify({
@@ -119,8 +113,6 @@ def download(token=None):
         return jsonify({'error': 'Link expired or file not found'}), 404
 
     file_path = generated_files[0]
-    
-    # Original video title fetch karein
     custom_title = FILE_TITLES.get(token, "audio")
     download_filename = f"{custom_title}{file_path.suffix}"
 
