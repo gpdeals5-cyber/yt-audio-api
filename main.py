@@ -21,6 +21,7 @@ limiter = Limiter(
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
+# Token Cleanup Logic (Deletes downloaded files after 10 minutes)
 def schedule_file_deletion(filepath: Path, delay_seconds: int = 600):
     def delete_file():
         try:
@@ -40,28 +41,27 @@ def index():
     out_path_template = str(DOWNLOAD_DIR / f"{token}.%(ext)s")
 
     ydl_opts = {
-        'format': 'ba/b',
+        'format': 'bestaudio/best',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '128',
         }],
         'outtmpl': out_path_template,
+        'cookiefile': 'cookies.txt',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'socket_timeout': 30,
-        'retries': 10,
+        'socket_timeout': 60,
+        'retries': 20,
         'noplaylist': True,
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'mweb', 'android', 'web'],
+                'player_skip': ['webpage', 'configs']
+            }
         }
     }
-
-    # Use cookies if available
-    if os.path.exists('cookies.txt'):
-        ydl_opts['cookiefile'] = 'cookies.txt'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
