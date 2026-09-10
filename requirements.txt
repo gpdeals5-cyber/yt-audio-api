@@ -1,5 +1,5 @@
-flask
+Flask
 flask-cors
 flask-limiter
+yt-dlp
 gunicorn
-yt-dlp>=2024.08.06
