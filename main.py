@@ -12,6 +12,7 @@ import yt_dlp
 app = Flask(__name__)
 CORS(app)
 
+# Memory limiter setup
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -52,18 +53,12 @@ def index():
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': out_template,
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '128',
-        }],
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'socket_timeout': 30,
         'retries': 10,
         'noplaylist': True,
-        'prefer_ffmpeg': True,
         'extractor_args': {
             'youtube': {
                 'player_client': ['mweb', 'android', 'ios'],
@@ -113,13 +108,13 @@ def download(token=None):
 
     file_path = generated_files[0]
     custom_title = FILE_TITLES.get(token, "audio")
-    download_filename = f"{custom_title}.mp3"
+    ext = file_path.suffix
+    download_filename = f"{custom_title}{ext}"
 
     return send_file(
         file_path,
         as_attachment=True,
-        download_name=download_filename,
-        mimetype="audio/mpeg"
+        download_name=download_filename
     )
 
 if __name__ == '__main__':
