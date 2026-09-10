@@ -26,13 +26,12 @@ FILE_TITLES = {}
 
 def clean_filename(title):
     cleaned = re.sub(r'[\\/*?:"<>|]', "", title)
-    return cleaned.strip()
+    return cleaned.strip() or "audio"
 
-def schedule_file_deletion(token: str, delay_seconds: int = 600):
+def schedule_file_deletion(token: str, delay_seconds: int = 1200):
     def delete_file():
         try:
-            generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
-            for f in generated_files:
+            for f in DOWNLOAD_DIR.glob(f"{token}*"):
                 if f.exists():
                     f.unlink()
             FILE_TITLES.pop(token, None)
@@ -60,18 +59,18 @@ def index():
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'socket_timeout': 30,
+        'socket_timeout': 60,
         'retries': 10,
         'noplaylist': True,
         'prefer_ffmpeg': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['mweb', 'android', 'ios'],
+                'player_client': ['android', 'mweb'],
                 'player_skip': ['webpage', 'configs']
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
     }
 
@@ -84,11 +83,12 @@ def index():
             video_title = info.get('title', 'audio') if info else 'audio'
             FILE_TITLES[token] = clean_filename(video_title)
 
+        # Look for any generated file with this token prefix
         generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
         if not generated_files:
             return jsonify({'error': 'Conversion failed or file not generated'}), 500
 
-        schedule_file_deletion(token, 600)
+        schedule_file_deletion(token, 1200)
         return jsonify({
             'download_url': f"/download?token={token}",
             'token': token,
