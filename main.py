@@ -48,16 +48,15 @@ def index():
             'preferredquality': '128',
         }],
         'outtmpl': out_path_template,
-        'cookiefile': 'cookies.txt',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'socket_timeout': 60,
-        'retries': 20,
+        'retries': 15,
         'noplaylist': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'mweb', 'android', 'web'],
+                'player_client': ['android', 'ios'],
                 'player_skip': ['webpage', 'configs']
             }
         }
