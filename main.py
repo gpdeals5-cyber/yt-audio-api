@@ -51,17 +51,27 @@ def index():
     token = secrets.token_hex(16)
     out_template = str(DOWNLOAD_DIR / f"{token}.%(ext)s")
 
-    # Flexible format selection to avoid "format not available" error
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': out_template,
         'ffmpeg_location': FFMPEG_PATH,
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '128',
+        }],
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'socket_timeout': 30,
+        'socket_timeout': 60,
         'retries': 10,
         'noplaylist': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tv', 'android', 'mweb'],
+                'player_skip': ['configs']
+            }
+        },
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         }
