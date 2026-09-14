@@ -68,17 +68,19 @@ def index():
         'noplaylist': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['tv', 'android', 'mweb'],
+                'player_client': ['mweb', 'android', 'ios', 'tv'],
                 'player_skip': ['configs']
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         }
     }
 
-    if os.path.exists('cookies.txt'):
-        ydl_opts['cookiefile'] = 'cookies.txt'
+    # Verify cookies file existence
+    cookie_path = Path('cookies.txt')
+    if cookie_path.exists() and cookie_path.stat().st_size > 0:
+        ydl_opts['cookiefile'] = str(cookie_path)
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -88,7 +90,7 @@ def index():
 
         generated_files = list(DOWNLOAD_DIR.glob(f"{token}*"))
         if not generated_files:
-            return jsonify({'error': 'Conversion failed or file not generated'}), 500
+            return jsonify({'error': 'Conversion failed: File was not generated on disk'}), 500
 
         schedule_file_deletion(token, 1800)
         return jsonify({
@@ -98,7 +100,8 @@ def index():
         })
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        # Return exact yt-dlp/ffmpeg exception message
+        return jsonify({'error': f"yt-dlp error: {str(e)}"}), 500
 
 @app.route('/download', methods=['GET'])
 @app.route('/download/<token>', methods=['GET'])
