@@ -10,6 +10,7 @@ from flask_limiter.util import get_remote_address
 import yt_dlp
 import imageio_ffmpeg
 
+# FFmpeg binary path auto-detection
 FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 app = Flask(__name__)
@@ -51,7 +52,7 @@ def index():
     token = secrets.token_hex(16)
     out_template = str(DOWNLOAD_DIR / f"{token}.%(ext)s")
 
-    # Fast Extraction Logic: Re-encoding bypass for ultra-fast response
+    # Android TV & TV Embedded client simulation for bot bypass
     ydl_opts = {
         'format': 'bestaudio[ext=m4a]/bestaudio/best',
         'outtmpl': out_template,
@@ -64,12 +65,12 @@ def index():
         'noplaylist': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'mweb'],
-                'player_skip': ['webpage', 'configs']
+                'player_client': ['tv', 'android_vr', 'web_creator'],
+                'player_skip': ['configs']
             }
         },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (SmartHub; SMART-TV; U; Linux/SmartTV) AppleWebKit/537.42 (KHTML, like Gecko) Safari/537.42',
         }
     }
 
@@ -112,7 +113,6 @@ def download(token=None):
     file_path = generated_files[0]
     custom_title = FILE_TITLES.get(token, "audio")
     
-    # Deliver file smoothly with original audio response
     return send_file(
         file_path,
         as_attachment=True,
